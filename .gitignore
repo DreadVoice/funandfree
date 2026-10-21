@@ -1,0 +1,9 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets
+*.env
+!**/.env.example

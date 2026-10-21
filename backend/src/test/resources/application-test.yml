@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:file:test?mode=memory&cache=shared&foreign_keys=on
+  flyway:
+    clean-disabled: false
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173

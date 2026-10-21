@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/local.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
+
+logging:
+  level:
+    com.funandfree.events: DEBUG
+    org.springframework.jdbc.core: DEBUG
