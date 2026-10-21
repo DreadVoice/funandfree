@@ -41,7 +41,6 @@ app:
   cors:
     allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:5173}
   jobs:
-    # Service account allowed to call /internal/** via Cloud Scheduler OIDC
     scheduler-service-account: ${APP_SCHEDULER_SA:}
   reminders:
     lead-time: PT24H

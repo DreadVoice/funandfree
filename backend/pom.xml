@@ -39,7 +39,6 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
-    <!-- Firebase ID tokens are validated as plain JWTs; no Firebase Admin SDK. -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
@@ -53,7 +52,6 @@
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
-      <!-- SQLite support ships inside flyway-core; no separate database module exists. -->
     </dependency>
 
     <dependency>
@@ -78,7 +76,6 @@
   </build>
 
   <profiles>
-    <!-- mvn -Pnative native:compile  (Linux x86_64 CI runner only; needs 4-8 GB RAM) -->
     <profile>
       <id>native</id>
       <build>
@@ -89,7 +86,6 @@
             <configuration>
               <imageName>event-platform</imageName>
               <buildArgs>
-                <buildArg>-Os</buildArg>
                 <buildArg>--no-fallback</buildArg>
               </buildArgs>
             </configuration>
