@@ -3,5 +3,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+node_modules/
+dist/
+target/
+
 *.env
 !**/.env.example
