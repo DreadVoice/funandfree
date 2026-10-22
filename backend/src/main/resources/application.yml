@@ -42,6 +42,10 @@ app:
     allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:5173}
   jobs:
     scheduler-service-account: ${APP_SCHEDULER_SA:}
+    oidc:
+      issuer: ${APP_OIDC_ISSUER:https://accounts.google.com}
+      jwk-set-uri: ${APP_OIDC_JWK_SET_URI:https://www.googleapis.com/oauth2/v3/certs}
+      audience: ${APP_OIDC_AUDIENCE:}
   reminders:
     lead-time: PT24H
 
