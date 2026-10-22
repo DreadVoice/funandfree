@@ -9,26 +9,32 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
-@Profile("spike")
 @Component
 public class SqliteSpikeRunner implements ApplicationRunner {
 
     private final JdbcClient db;
     private final EventRepository events;
     private final ConfigurableApplicationContext context;
+    private final TransactionTemplate transactions;
 
-    SqliteSpikeRunner(JdbcClient db, EventRepository events, ConfigurableApplicationContext context) {
+    SqliteSpikeRunner(JdbcClient db, EventRepository events, ConfigurableApplicationContext context,
+                      PlatformTransactionManager transactionManager) {
         this.db = db;
         this.events = events;
         this.context = context;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        if (!args.containsOption("spike")) {
+            return;
+        }
         final int status = verifyQuietly();
         System.exit(SpringApplication.exit(context, () -> status));
     }
@@ -50,6 +56,29 @@ public class SqliteSpikeRunner implements ApplicationRunner {
         System.out.println("migrations=" + db.sql("select count(*) from flyway_schema_history where success = 1")
                 .query(Integer.class).single());
 
+        long eventsBefore = count("event");
+        long usersBefore = count("app_user");
+        long searchBefore = count("event_search");
+
+        transactions.executeWithoutResult(status -> {
+            status.setRollbackOnly();
+            verifyWrites();
+        });
+
+        long eventsAfter = count("event");
+        long usersAfter = count("app_user");
+        long searchAfter = count("event_search");
+        System.out.println("rollback: event " + eventsBefore + "->" + eventsAfter
+                + ", app_user " + usersBefore + "->" + usersAfter
+                + ", event_search " + searchBefore + "->" + searchAfter + " (expect unchanged)");
+
+        if (eventsAfter != eventsBefore || usersAfter != usersBefore || searchAfter != searchBefore) {
+            throw new IllegalStateException("spike writes were not rolled back");
+        }
+        System.out.println("--- sqlite spike ok ---");
+    }
+
+    private void verifyWrites() {
         long organizerId = db.sql("""
                 insert into app_user (firebase_uid, email, display_name, role)
                 values ('spike-organizer', 'organizer@example.com', 'Spike Organizer', 'ORGANIZER')
@@ -83,6 +112,9 @@ public class SqliteSpikeRunner implements ApplicationRunner {
         if (!first || !second || third || taken != 2 || upcoming.isEmpty() || hits.isEmpty()) {
             throw new IllegalStateException("spike assertions failed");
         }
-        System.out.println("--- sqlite spike ok ---");
+    }
+
+    private long count(String table) {
+        return db.sql("select count(*) from " + table).query(Long.class).single();
     }
 }
