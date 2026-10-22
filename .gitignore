@@ -2,6 +2,7 @@
 Thumbs.db
 .idea/
 .vscode/
+.claude/
 
 node_modules/
 dist/
