@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:sqlite:./data/local.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on
+    url: jdbc:sqlite:./data/local.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on&transaction_mode=IMMEDIATE
 
 app:
   cors:

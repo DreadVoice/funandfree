@@ -4,11 +4,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class EventRepository {
+
     private static final String COLUMNS = """
             id, organizer_id, title, description, venue, starts_at_utc,
             time_zone, capacity, seats_taken, status
@@ -18,6 +20,13 @@ public class EventRepository {
 
     EventRepository(JdbcClient db) {
         this.db = db;
+    }
+
+    public Optional<Event> findById(long id) {
+        return db.sql("select " + COLUMNS + " from event where id = :id")
+                .param("id", id)
+                .query(EventRepository::mapEvent)
+                .optional();
     }
 
     public List<Event> findUpcoming(int limit) {
@@ -62,6 +71,25 @@ public class EventRepository {
                 """)
                 .param("id", eventId)
                 .update() == 1;
+    }
+
+    public boolean releaseSeat(long eventId) {
+        return db.sql("""
+                update event
+                   set seats_taken = seats_taken - 1,
+                       updated_at  = strftime('%Y-%m-%dT%H:%M:%SZ')
+                 where id = :id
+                   and seats_taken > 0
+                """)
+                .param("id", eventId)
+                .update() == 1;
+    }
+
+    public int seatsTaken(long eventId) {
+        return db.sql("select seats_taken from event where id = :id")
+                .param("id", eventId)
+                .query(Integer.class)
+                .single();
     }
 
     public long insert(long organizerId, String title, String description, String venue,
