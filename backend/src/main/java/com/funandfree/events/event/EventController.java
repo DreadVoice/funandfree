@@ -1,7 +1,9 @@
 package com.funandfree.events.event;
 
+import com.funandfree.events.common.NotFoundException;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/events")
 public class EventController {
+
     private final EventRepository events;
 
     EventController(EventRepository events) {
@@ -24,5 +27,11 @@ public class EventController {
     public List<Event> search(@RequestParam String q,
                               @RequestParam(defaultValue = "20") int limit) {
         return events.search(q, limit);
+    }
+
+    @GetMapping("/{eventId}")
+    public Event byId(@PathVariable long eventId) {
+        return events.findById(eventId)
+                .orElseThrow(() -> new NotFoundException("event " + eventId + " not found"));
     }
 }
