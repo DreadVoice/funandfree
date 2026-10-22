@@ -78,6 +78,10 @@ gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
   --member "serviceAccount:${SA_EMAIL}" \
   --role roles/storage.objectCreator
 
+gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
+  --member "serviceAccount:${SA_EMAIL}" \
+  --role roles/storage.objectViewer
+
 echo
 echo "Add these GitHub repository secrets to ${GITHUB_REPO}:"
 echo "  GCP_WIF_PROVIDER        = ${POOL_NAME}/providers/${PROVIDER}"
@@ -85,5 +89,5 @@ echo "  GCP_CI_SERVICE_ACCOUNT  = ${SA_EMAIL}"
 echo "  GCP_RELEASE_BUCKET      = ${BUCKET}"
 echo
 echo "The provider only accepts tokens from ${GITHUB_REPO}."
-echo "The service account can create objects in gs://${BUCKET} but cannot read, overwrite or delete them."
+echo "The service account can create and read objects in gs://${BUCKET} but cannot overwrite or delete them."
 echo "Objects are deleted automatically after ${RETENTION_DAYS} days."
