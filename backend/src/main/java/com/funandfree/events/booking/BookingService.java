@@ -64,6 +64,22 @@ public class BookingService {
         });
     }
 
+    public int promoteWaitlistToCapacity(long eventId) {
+        return transactions.execute(status -> {
+            int promoted = 0;
+            while (events.tryClaimSeat(eventId)) {
+                Optional<Long> next = waitlist.promoteNext(eventId);
+                if (next.isEmpty()) {
+                    events.releaseSeat(eventId);
+                    break;
+                }
+                bookings.insertConfirmed(eventId, next.get());
+                promoted++;
+            }
+            return promoted;
+        });
+    }
+
     public boolean leaveWaitlist(long eventId, long userId) {
         return transactions.execute(status -> waitlist.cancelWaiting(eventId, userId) > 0);
     }

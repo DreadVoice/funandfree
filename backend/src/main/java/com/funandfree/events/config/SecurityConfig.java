@@ -22,9 +22,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/mine").hasRole("ORGANIZER")
                         .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/search").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/{eventId}").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events").hasRole("ORGANIZER")
+                        .requestMatchers(HttpMethod.PUT, "/api/events/{eventId}").hasRole("ORGANIZER")
                         .requestMatchers("/internal/**").denyAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

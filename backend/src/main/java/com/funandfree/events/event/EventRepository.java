@@ -112,6 +112,75 @@ public class EventRepository {
                 .single();
     }
 
+    public long insert(long organizerId, String title, String description, String venue,
+                       Instant startsAtUtc, Instant endsAtUtc, String timeZone,
+                       Double latitude, Double longitude, int capacity, String imageUrl) {
+        return db.sql("""
+                insert into event (organizer_id, title, description, venue, starts_at_utc,
+                                   ends_at_utc, time_zone, latitude, longitude, capacity, image_url)
+                values (:organizerId, :title, :description, :venue, :startsAt,
+                        :endsAt, :timeZone, :latitude, :longitude, :capacity, :imageUrl)
+                returning id
+                """)
+                .param("organizerId", organizerId)
+                .param("title", title)
+                .param("description", description)
+                .param("venue", venue)
+                .param("startsAt", startsAtUtc.toString())
+                .param("endsAt", endsAtUtc == null ? null : endsAtUtc.toString())
+                .param("timeZone", timeZone)
+                .param("latitude", latitude)
+                .param("longitude", longitude)
+                .param("capacity", capacity)
+                .param("imageUrl", imageUrl)
+                .query(Long.class)
+                .single();
+    }
+
+    public int update(long eventId, String title, String description, String venue,
+                      Instant startsAtUtc, Instant endsAtUtc, String timeZone,
+                      Double latitude, Double longitude, int capacity, String imageUrl) {
+        return db.sql("""
+                update event
+                   set title = :title,
+                       description = :description,
+                       venue = :venue,
+                       starts_at_utc = :startsAt,
+                       ends_at_utc = :endsAt,
+                       time_zone = :timeZone,
+                       latitude = :latitude,
+                       longitude = :longitude,
+                       capacity = :capacity,
+                       image_url = :imageUrl,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ')
+                 where id = :id
+                   and :capacity >= seats_taken
+                """)
+                .param("id", eventId)
+                .param("title", title)
+                .param("description", description)
+                .param("venue", venue)
+                .param("startsAt", startsAtUtc.toString())
+                .param("endsAt", endsAtUtc == null ? null : endsAtUtc.toString())
+                .param("timeZone", timeZone)
+                .param("latitude", latitude)
+                .param("longitude", longitude)
+                .param("capacity", capacity)
+                .param("imageUrl", imageUrl)
+                .update();
+    }
+
+    public List<Event> findByOrganizer(long organizerId) {
+        return db.sql("select " + COLUMNS + """
+                  from event
+                 where organizer_id = :organizerId
+                 order by starts_at_utc desc
+                """)
+                .param("organizerId", organizerId)
+                .query(EventRepository::mapEvent)
+                .list();
+    }
+
     private static Event mapEvent(ResultSet rs, int rowNum) throws SQLException {
         return new Event(
                 rs.getLong("id"),
