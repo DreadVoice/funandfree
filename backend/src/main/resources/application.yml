@@ -48,6 +48,10 @@ app:
       audience: ${APP_OIDC_AUDIENCE:}
   reminders:
     lead-time: PT24H
+    email:
+      base-url: ${RESEND_BASE_URL:https://api.resend.com}
+      api-key: ${RESEND_API_KEY:}
+      from: ${RESEND_FROM:Events <onboarding@resend.dev>}
 
 logging:
   level:
