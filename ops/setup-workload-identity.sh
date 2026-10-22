@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PROJECT_ID="${PROJECT_ID:-funandfree}"
+PROJECT_ID="${PROJECT_ID:-standard-tools}"
 REGION="${REGION:-us-central1}"
 GITHUB_REPO="${GITHUB_REPO:-DreadVoice/funandfree}"
 POOL="${POOL:-github}"

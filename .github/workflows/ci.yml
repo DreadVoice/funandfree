@@ -104,24 +104,41 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: check release credentials
+        id: credentials
+        env:
+          PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+        run: |
+          if [ -n "$PROVIDER" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Publish skipped: GCP_WIF_PROVIDER is not set. Run ops/setup-workload-identity.sh and add the repository secrets." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/download-artifact@v4
+        if: steps.credentials.outputs.ready == 'true'
         with:
           name: event-platform
           path: dist
 
       - name: checksum
+        if: steps.credentials.outputs.ready == 'true'
         run: |
           chmod +x dist/event-platform
           sha256sum dist/event-platform | awk '{print $1}' > dist/event-platform.sha256
 
       - uses: google-github-actions/auth@v2
+        if: steps.credentials.outputs.ready == 'true'
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_CI_SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v2
+        if: steps.credentials.outputs.ready == 'true'
 
       - name: upload to the release bucket
+        if: steps.credentials.outputs.ready == 'true'
         env:
           BUCKET: ${{ secrets.GCP_RELEASE_BUCKET }}
           SHA: ${{ github.sha }}

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PROJECT_ID="${PROJECT_ID:-funandfree}"
+PROJECT_ID="${PROJECT_ID:-standard-tools}"
 REGION="${REGION:-us-central1}"
 API_BASE_URL="${API_BASE_URL:?set API_BASE_URL, for example https://api.example.com}"
 JOB_NAME="${JOB_NAME:-event-reminders}"
