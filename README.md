@@ -459,7 +459,6 @@ There are still a few things I'd like to improve. Some are operational shortcomi
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
 - **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.
 - **No proper JVM-versus-native benchmark.** I compared startup times (2.50 s versus 0.51 s), but the measurements were taken on different hardware. Throughput hasn't been tested under identical conditions.
-- **Secret Manager holds no versions yet.** The runtime wrapper fetches secrets with the instance metadata token and falls back to the environment file when a secret has no accessible version, which is what currently happens for the Resend key.
-- **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, but no actual reminder email has been sent.
+- **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, and the key is now loaded from Secret Manager at startup, but no actual reminder email has been sent. The default sender, `onboarding@resend.dev`, only delivers to the Resend account's own address, so a real test needs a verified domain.
 - **The API URL uses `workers.dev`.** A custom domain would make it cleaner, but would introduce an annual cost.
 
