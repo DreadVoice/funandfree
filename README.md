@@ -149,7 +149,7 @@ These are the measurements from the running instance:
 | Startup | **0.51 s** typical (0.24 s on faster hardware) |
 | Memory, cgroup `memory.current` | **111 MB** against a 320 MB `MemoryMax` |
 | Process RSS | 158 MB |
-| Binary size | 111 MB, unstripped with debug info |
+| Binary size | 111 MB (53 MB compiled code, 53 MB build-time heap snapshot) |
 | Available host memory | 576 MB of 969 MB |
 | Swap in use | 82 MB of 2048 MB |
 
@@ -346,6 +346,7 @@ A few things are in place to limit access to the VM and its internal endpoints:
 - `/actuator/*` is blocked by both Caddy and the Cloudflare Worker. This keeps internal health information private even if one of the configurations changes unexpectedly.
 - CORS only allows the Cloudflare Pages frontend origin. I've verified that requests from other origins don't receive an `Access-Control-Allow-Origin` header.
 - The reminder endpoint requires a Google OIDC token from the specific Cloud Scheduler service account.
+- **Secrets come from Secret Manager at startup, not from disk.** A wrapper script reads the instance metadata token, fetches each secret named in `APP_SECRETS` over the Secret Manager REST API and `exec`s the binary, so values exist only in the process environment. The VM's service account has `secretAccessor` on the individual secret rather than on the project. If a secret has no accessible version the wrapper logs it and starts anyway, which keeps a missing optional secret from turning into an outage.
 
 ---
 
@@ -405,6 +406,8 @@ The current setup fits within the free-tier allowances of the services it uses.
 
 The only charge so far was ₹5 from the initial disk and IPv4 configuration mistakes. Both have since been fixed.
 
+To make sure a mistake like that surfaces quickly rather than at the end of a billing cycle, a project-scoped budget alert now fires at 25, 50 and 100 percent of ₹100. The project-level scope matters: an account-level budget would not have isolated these charges.
+
 ---
 
 ## 10. Running locally
@@ -454,10 +457,9 @@ There are still a few things I'd like to improve. Some are operational shortcomi
 
 - **Infrastructure isn't managed through Terraform yet.** Everything was set up through scripts in `ops/`. They're idempotent and can be run again, but I can't currently recreate the entire environment from infrastructure code alone.
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
-- **No uptime check or budget alert.** Both are available for free. A budget alert would also have caught the initial billing mistakes much earlier.
+- **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.
 - **No proper JVM-versus-native benchmark.** I compared startup times (2.50 s versus 0.51 s), but the measurements were taken on different hardware. Throughput hasn't been tested under identical conditions.
-- **The native binary isn't stripped.** It's currently 111 MB and still includes debug information. Stripping it should reduce the size considerably.
-- **Secrets are stored in a `chmod 600` environment file.** Moving them to Secret Manager would be a better approach.
+- **Secret Manager holds no versions yet.** The runtime wrapper fetches secrets with the instance metadata token and falls back to the environment file when a secret has no accessible version, which is what currently happens for the Resend key.
 - **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, but no actual reminder email has been sent.
 - **The API URL uses `workers.dev`.** A custom domain would make it cleaner, but would introduce an annual cost.
 
