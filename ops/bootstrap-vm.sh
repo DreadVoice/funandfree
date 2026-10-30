@@ -42,7 +42,8 @@ APP_DB_PATH=${APP_HOME}/data/events.db
 APP_ALLOWED_ORIGINS=http://localhost:5173
 APP_SCHEDULER_SA=
 APP_OIDC_AUDIENCE=
-RESEND_API_KEY=
+GCP_PROJECT=standard-tools
+APP_SECRETS=RESEND_API_KEY=resend-api-key
 ENV
   chmod 600 "${ENV_FILE}"
   chown root:root "${ENV_FILE}"
@@ -57,6 +58,7 @@ if ! command -v caddy >/dev/null 2>&1; then
   apt-get install -y -qq caddy
 fi
 
+install -m 755 -o root -g root "$(dirname "$0")/run-with-secrets.sh" "${APP_ROOT}/run-with-secrets.sh"
 install -m 644 -o root -g root "$(dirname "$0")/event-platform.service" /etc/systemd/system/event-platform.service
 install -m 644 -o root -g root "$(dirname "$0")/Caddyfile" /etc/caddy/Caddyfile
 

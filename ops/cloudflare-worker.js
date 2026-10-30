@@ -1,4 +1,4 @@
-const ORIGIN = "https://2600-1900-4000-af72-0-0-0-0.sslip.io";
+const ORIGIN = "https://funandfree.duckdns.org";
 
 export default {
   async fetch(request) {
