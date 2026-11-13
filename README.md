@@ -388,6 +388,38 @@ I also tested the rollback mechanism by deliberately deploying a broken binary r
 
 The application runs under systemd as a non-root user. Its service configuration includes `MemoryMax=320M`, `ProtectSystem=strict`, `NoNewPrivileges` and write access restricted to its data directory.
 
+### Infrastructure as code
+
+The GCP side of the deployment is described in `infra/` as Terraform. The infrastructure existed before the Terraform did, so it was adopted with `import` blocks rather than recreated, and the goal was a plan that reports no changes at all:
+
+```
+Plan: 15 to import, 0 to add, 0 to change, 0 to destroy.
+```
+
+That number is the point. Anything other than zero in the last three columns would mean the code and the running infrastructure disagree, and writing it this way surfaced three disagreements that I had not noticed:
+
+- Both firewall rules carried descriptions that my first draft omitted, so applying it would have erased them.
+- I had written `uniform_bucket_level_access = false` for the releases bucket when it is actually `true`. That would have been a real change to live access control, made silently in the name of matching the code.
+- The budget showed a permanent one-line diff because I had marked the billing account variable as sensitive. Terraform reports a cosmetic update for a sensitivity change even when the value is identical, and the marking achieved nothing because the account ID appears in the resource's own `id` regardless.
+
+What is managed: the VM and its boot disk, both firewall rules, the two service accounts and their role bindings, the Workload Identity pool and provider including the repository pin, the releases bucket with its lifecycle rule and IAM, the Secret Manager secret and its access binding, and the budget alert.
+
+Two deliberate exclusions. Secret *versions* are never in Terraform, because the state file stores values in plaintext, so the secret is declared while its contents are added out of band. DuckDNS and Cloudflare have no usable free-tier Terraform path, so the `ops/` scripts remain the source of truth for everything outside GCP.
+
+The VM and the releases bucket carry `prevent_destroy`, which matters more here than in most projects: the SQLite database lives on that instance's disk, so a change Terraform decides to handle by replacement would destroy the data. The boot image is also under `ignore_changes`, because Debian image names carry a datestamp and a newer one would otherwise look like a reason to rebuild the machine.
+
+State lives in its own bucket, `standard-tools-tfstate`, with versioning on. It is deliberately not the releases bucket, whose 90-day delete rule would eventually expire the state file.
+
+```sh
+cd infra
+terraform init
+terraform plan
+```
+
+Credentials come from `gcloud auth application-default login`, which is separate from the ordinary `gcloud auth login`.
+
+---
+
 ---
 
 ## 9. Running costs
@@ -457,7 +489,7 @@ sh backend/native-build.sh
 
 There are still a few things I'd like to improve. Some are operational shortcomings, while others are things I haven't had the time or resources to benchmark properly.
 
-- **Infrastructure isn't managed through Terraform yet.** Everything was set up through scripts in `ops/`. They're idempotent and can be run again, but I can't currently recreate the entire environment from infrastructure code alone.
+- **The Terraform state has not been applied yet.** `infra/` describes the GCP resources and `terraform plan` reports an import-only plan with no changes, but the import has not been committed to state, so the configuration is verified rather than authoritative. DuckDNS, the Cloudflare Worker and Cloudflare Pages stay outside Terraform, so `ops/` is still needed to recreate the environment in full.
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
 - **The reminder job is not scheduled.** `ops/create-scheduler-job.sh` creates the Cloud Scheduler job and its invoker service account, but it has not been run, so reminders only go out when the endpoint is called by hand.
 - **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.

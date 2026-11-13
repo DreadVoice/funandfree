@@ -10,3 +10,11 @@ target/
 
 *.env
 !**/.env.example
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/crash.log
+infra/tfplan.bin
+infra/plan.txt
+infra/apply.txt
