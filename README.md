@@ -345,7 +345,7 @@ A few things are in place to limit access to the VM and its internal endpoints:
 - Ports 80 and 443 are open to `::/0`. Port 80 is needed for Let's Encrypt HTTP-01 certificate renewal.
 - `/actuator/*` is blocked by both Caddy and the Cloudflare Worker. This keeps internal health information private even if one of the configurations changes unexpectedly.
 - CORS only allows the Cloudflare Pages frontend origin. I've verified that requests from other origins don't receive an `Access-Control-Allow-Origin` header.
-- The reminder endpoint requires a Google OIDC token from the specific Cloud Scheduler service account.
+- The reminder endpoint requires a Google OIDC token. The Cloudflare Worker only blocks `/actuator`, so `/internal/**` is reachable from the public internet and the token check is the only thing guarding it. Unauthenticated requests get a 401. Pinning it to one identity needs `APP_SCHEDULER_SA` set to the invoker service account; while that is empty the chain accepts any valid Google OIDC token, so it has to be set at the same time the Cloud Scheduler job is created.
 - **Secrets come from Secret Manager at startup, not from disk.** A wrapper script reads the instance metadata token, fetches each secret named in `APP_SECRETS` over the Secret Manager REST API and `exec`s the binary, so values exist only in the process environment. The VM's service account has `secretAccessor` on the individual secret rather than on the project. If a secret has no accessible version the wrapper logs it and starts anyway, which keeps a missing optional secret from turning into an outage.
 
 ---
@@ -448,6 +448,8 @@ sh backend/native-build.sh
 | `ops/setup-workload-identity.sh` | Sets up WIF, the CI identity and release bucket |
 | `ops/create-scheduler-job.sh` | Creates the Cloud Scheduler job with OIDC |
 | `ops/cloudflare-worker.js` | Handles the IPv4-to-IPv6 proxy |
+| `ops/run-with-secrets.sh` | Loads secrets from Secret Manager and starts the binary |
+| `ops/reminder-smoke-test.sh` | Seeds and clears a reminder run against Resend's sink addresses |
 
 ---
 
@@ -457,8 +459,9 @@ There are still a few things I'd like to improve. Some are operational shortcomi
 
 - **Infrastructure isn't managed through Terraform yet.** Everything was set up through scripts in `ops/`. They're idempotent and can be run again, but I can't currently recreate the entire environment from infrastructure code alone.
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
+- **The reminder job is not scheduled.** `ops/create-scheduler-job.sh` creates the Cloud Scheduler job and its invoker service account, but it has not been run, so reminders only go out when the endpoint is called by hand.
 - **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.
 - **No proper JVM-versus-native benchmark.** I compared startup times (2.50 s versus 0.51 s), but the measurements were taken on different hardware. Throughput hasn't been tested under identical conditions.
-- **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, and the key is now loaded from Secret Manager at startup, but no actual reminder email has been sent. The default sender, `onboarding@resend.dev`, only delivers to the Resend account's own address, so a real test needs a verified domain.
+- **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, and the key is now loaded from Secret Manager at startup, but no actual reminder email has been sent. This does not need a verified domain: Resend publishes sink addresses (`delivered@resend.dev`, `bounced@resend.dev`) that accept real sends, and `ops/reminder-smoke-test.sh` seeds an event whose attendees are those addresses plus one on `example.com`, which Resend rejects with a 422 and so exercises the failure path that releases the reminder claim. Sending from a real address would still need a domain, which `duckdns.org` cannot provide because Resend requires DKIM and SPF records on subdomains of the sending host.
 - **The API URL uses `workers.dev`.** A custom domain would make it cleaner, but would introduce an annual cost.
 
