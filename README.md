@@ -104,6 +104,26 @@ Spring Boot 3.5 / Java 21, GraalVM native image
 | Authentication | Firebase + OAuth2 resource server | JWT validation without the Firebase Admin SDK |
 | Roles | Application database, keyed by Firebase UID | Avoids Firebase custom claims and the Admin SDK |
 
+### Reliable delivery with a transactional outbox
+
+Reminder emails are not sent by the job that decides to send them. The job writes two rows in one transaction: the `reminder_log` entry that records the decision, and an `outbox_message` row that records the work. A separate relay reads the outbox and delivers.
+
+The reason is that a database and an email provider cannot be committed together. Sending first means a failed commit promises something that did not happen; committing first means a failed send loses the message silently. Writing the intent to the same database in the same transaction removes that gap, which is the whole point of the pattern.
+
+The relay gives the delivery path what the previous inline version could not:
+
+- **Exponential backoff.** A failed attempt is rescheduled at `base * 2^(attempts-1)`, capped, so a provider outage is retried patiently rather than hammered.
+- **A dead letter state.** After the attempt limit a message becomes `DEAD` instead of retrying forever, and keeps its last error.
+- **Permanent failures fail fast.** A payload that cannot be parsed will never parse, so handlers can raise `OutboxPermanentFailure` to skip the retry schedule entirely.
+- **A visibility timeout.** Claiming sets the status to `SENDING` and pushes `next_attempt_at` forward. If the process dies mid-send, the next run reclaims the message rather than leaving it stuck forever.
+- **Transactional dedup.** A partial unique index on `dedup_key` makes enqueueing the same reminder twice a no-op.
+
+The handler re-reads the booking at delivery time instead of carrying a snapshot, so an event cancelled between enqueue and send is dropped rather than mailed.
+
+Two things are deliberately separate. `reminder_log` answers "should this person be reminded", which is a business question. The outbox answers "has this message been delivered", which is a delivery question. Keeping them apart means a delivery failure cannot cause a duplicate reminder, and a dead message does not retry forever.
+
+---
+
 ### Authentication
 
 Firebase handles sign-in and issues ID tokens. The backend validates these as ordinary JWTs using Google's public JWK endpoint.
@@ -491,7 +511,7 @@ There are still a few things I'd like to improve. Some are operational shortcomi
 
 - **The Terraform state has not been applied yet.** `infra/` describes the GCP resources and `terraform plan` reports an import-only plan with no changes, but the import has not been committed to state, so the configuration is verified rather than authoritative. DuckDNS, the Cloudflare Worker and Cloudflare Pages stay outside Terraform, so `ops/` is still needed to recreate the environment in full.
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
-- **The reminder job is not scheduled.** `ops/create-scheduler-job.sh` creates the Cloud Scheduler job and its invoker service account, but it has not been run, so reminders only go out when the endpoint is called by hand.
+- **The scheduler jobs do not exist yet.** `ops/create-scheduler-job.sh` creates a job and its invoker service account, and two are needed: one for `/internal/jobs/reminders` to enqueue and one for `/internal/jobs/outbox` to deliver. Neither has been created, so both endpoints only run when called by hand.
 - **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.
 - **No proper JVM-versus-native benchmark.** I compared startup times (2.50 s versus 0.51 s), but the measurements were taken on different hardware. Throughput hasn't been tested under identical conditions.
 - **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, and the key is now loaded from Secret Manager at startup, but no actual reminder email has been sent. This does not need a verified domain: Resend publishes sink addresses (`delivered@resend.dev`, `bounced@resend.dev`) that accept real sends, and `ops/reminder-smoke-test.sh` seeds an event whose attendees are those addresses plus one on `example.com`, which Resend rejects with a 422 and so exercises the failure path that releases the reminder claim. Sending from a real address would still need a domain, which `duckdns.org` cannot provide because Resend requires DKIM and SPF records on subdomains of the sending host.

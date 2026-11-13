@@ -5,11 +5,12 @@ PROJECT_ID="${PROJECT_ID:-standard-tools}"
 REGION="${REGION:-us-central1}"
 API_BASE_URL="${API_BASE_URL:?set API_BASE_URL, for example https://api.example.com}"
 JOB_NAME="${JOB_NAME:-event-reminders}"
+JOB_PATH="${JOB_PATH:-/internal/jobs/reminders}"
 SCHEDULE="${SCHEDULE:-0 * * * *}"
 TIME_ZONE="${TIME_ZONE:-Etc/UTC}"
 SA_NAME="${SA_NAME:-scheduler-invoker}"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-TARGET_URL="${API_BASE_URL}/internal/jobs/reminders"
+TARGET_URL="${API_BASE_URL}${JOB_PATH}"
 
 gcloud services enable cloudscheduler.googleapis.com --project "${PROJECT_ID}"
 
@@ -33,7 +34,7 @@ gcloud scheduler jobs "${ACTION}" http "${JOB_NAME}" \
   --uri "${TARGET_URL}" \
   --http-method POST \
   --oidc-service-account-email "${SA_EMAIL}" \
-  --oidc-token-audience "${TARGET_URL}" \
+  --oidc-token-audience "${API_BASE_URL}" \
   --attempt-deadline 300s \
   --max-retry-attempts 3 \
   --min-backoff 30s \
@@ -42,7 +43,10 @@ gcloud scheduler jobs "${ACTION}" http "${JOB_NAME}" \
 echo
 echo "Set these on the VM service before the job runs:"
 echo "  APP_SCHEDULER_SA=${SA_EMAIL}"
-echo "  APP_OIDC_AUDIENCE=${TARGET_URL}"
+echo "  APP_OIDC_AUDIENCE=${API_BASE_URL}"
 echo
 echo "Trigger once by hand with:"
 echo "  gcloud scheduler jobs run ${JOB_NAME} --location ${REGION} --project ${PROJECT_ID}"
+echo
+echo "Create the outbox relay job with:"
+echo "  JOB_NAME=outbox-relay JOB_PATH=/internal/jobs/outbox SCHEDULE='*/5 * * * *' API_BASE_URL=${API_BASE_URL} sh $0"

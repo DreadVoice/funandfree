@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -40,6 +41,23 @@ public class ReminderRepository {
                 .param("channel", CHANNEL)
                 .query(ReminderRepository::mapDue)
                 .list();
+    }
+
+    public Optional<DueReminder> findForDelivery(long eventId, long userId) {
+        return db.sql("""
+                select e.id as event_id, e.title, e.starts_at_utc, e.time_zone, e.venue,
+                       u.id as user_id, u.email, u.display_name
+                  from event e
+                  join booking b on b.event_id = e.id and b.status = 'CONFIRMED'
+                  join app_user u on u.id = b.user_id
+                 where e.id = :eventId
+                   and u.id = :userId
+                   and e.status = 'PUBLISHED'
+                """)
+                .param("eventId", eventId)
+                .param("userId", userId)
+                .query(ReminderRepository::mapDue)
+                .optional();
     }
 
     public boolean claim(long eventId, long userId) {

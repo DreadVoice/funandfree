@@ -52,6 +52,24 @@ class InternalEndpointSecurityTest {
     }
 
     @Test
+    void anonymousCallsToTheOutboxRelayAreRejected() throws Exception {
+        mvc.perform(post("/internal/jobs/outbox"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void aSignedInAppUserCannotReachTheOutboxRelay() throws Exception {
+        long id = users.upsert("outbox-prober", "outbox-prober@example.com", "Prober", Role.ORGANIZER);
+        AppUser user = users.findById(id).orElseThrow();
+        Jwt jwt = Jwt.withTokenValue("token").header("alg", "RS256").subject("outbox-prober").build();
+
+        mvc.perform(post("/internal/jobs/outbox")
+                        .with(authentication(new FirebaseAuthentication(user, jwt,
+                                List.of(new SimpleGrantedAuthority("ROLE_ORGANIZER"))))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void aSignedInAppUserCannotReachInternalJobs() throws Exception {
         long id = users.upsert("internal-prober", "prober@example.com", "Prober", Role.ORGANIZER);
         AppUser user = users.findById(id).orElseThrow();

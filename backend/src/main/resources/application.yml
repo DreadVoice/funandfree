@@ -46,6 +46,12 @@ app:
       issuer: ${APP_OIDC_ISSUER:https://accounts.google.com}
       jwk-set-uri: ${APP_OIDC_JWK_SET_URI:https://www.googleapis.com/oauth2/v3/certs}
       audience: ${APP_OIDC_AUDIENCE:}
+  outbox:
+    max-attempts: ${APP_OUTBOX_MAX_ATTEMPTS:5}
+    batch-size: ${APP_OUTBOX_BATCH_SIZE:50}
+    base-backoff: ${APP_OUTBOX_BASE_BACKOFF:PT30S}
+    max-backoff: ${APP_OUTBOX_MAX_BACKOFF:PT1H}
+    visibility-timeout: ${APP_OUTBOX_VISIBILITY_TIMEOUT:PT5M}
   reminders:
     lead-time: PT24H
     email:
