@@ -284,7 +284,7 @@ Most of the deployment choices came down to making sure the application didn't e
 
 | Constraint | Solution |
 |---|---|
-| ~500 MB usable RAM | Native image using ~111 MB, `MemoryMax=320M` in systemd and 2 GB swap as a safety net |
+| ~500 MB usable RAM | Native image using ~117 MB, `MemoryMax=320M` in systemd and 2 GB swap as a safety net |
 | 2 shared vCPUs | Concurrency tests run in CI, not on the VM |
 | No free managed database | SQLite on local disk, WAL mode and a pool of 3 |
 | 1 GB/month egress | No images served from the VM; organizers provide image URLs |
@@ -521,7 +521,7 @@ There are still a few things I'd like to improve. Some are operational shortcomi
 
 - **The Terraform state has not been applied yet.** `infra/` describes the GCP resources and `terraform plan` reports an import-only plan with no changes, but the import has not been committed to state, so the configuration is verified rather than authoritative. DuckDNS, the Cloudflare Worker and Cloudflare Pages stay outside Terraform, so `ops/` is still needed to recreate the environment in full.
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
-- **The scheduler jobs do not exist yet.** `ops/create-scheduler-job.sh` creates a job and its invoker service account, and two are needed: one for `/internal/jobs/reminders` to enqueue and one for `/internal/jobs/outbox` to deliver. Neither has been created, so both endpoints only run when called by hand.
+- **The scheduler jobs run, but no reminder has travelled the whole path yet.** `event-reminders` runs hourly and `outbox-relay` every five minutes, both posting with an OIDC token as `scheduler-invoker@standard-tools.iam.gserviceaccount.com`, and a forced relay run returns OK. `APP_SCHEDULER_SA` and `APP_OIDC_AUDIENCE` are now set on the VM, so `InternalSecurityConfig` enforces both its audience and caller checks; while they were empty it skipped both, and any Google-signed OIDC token was accepted rather than only the scheduler's. What remains unobserved is the enqueue job completing a run and a reminder actually reaching an attendee.
 - **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.
 - **The message broker is verified but not wired in.** `spring-boot-starter-amqp` is on the classpath and `--spike` proves a full publish-and-receive round trip inside the native binary, but the outbox relay still delivers inline rather than through a queue. `app.amqp.enabled` is `false` everywhere and no broker runs anywhere, so this is a proven option rather than a working path.
 - **No proper JVM-versus-native benchmark.** I compared startup times (2.50 s versus 0.51 s), but the measurements were taken on different hardware. Throughput hasn't been tested under identical conditions.
