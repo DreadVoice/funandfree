@@ -52,7 +52,7 @@ Cancellation needed similar care. Rather than releasing a seat and then assignin
 
 Only when the waitlist is empty is the counter decremented. This avoids a situation where someone outside the waitlist grabs a seat before the next person in line gets it.
 
-There are **51 tests across 11 classes**, covering booking concurrency, authorization and reminder job idempotency.
+There are **65 tests across 9 classes**, covering booking concurrency, authorization and reminder job idempotency.
 
 ---
 
@@ -201,6 +201,12 @@ The Resend integration had a similar requirement. Instead of using `@Conditional
 
 This lets the same binary run with or without Resend configured. Adding the API key later doesn't require another build.
 
+**Spring AMQP needed no reflection configuration at all.** I expected the RabbitMQ client to be the awkward case, since AMQP clients tend to reach for reflection when decoding frames, and `--no-fallback` turns a missing hint into a runtime failure rather than a slow path. It compiled and ran without a single entry: `spring-rabbit` ships its own reachability metadata and Spring Boot's AOT processing covers the rest. The starter cost 6.5 MB of binary, taking it from 110.0 MB to 116.6 MB.
+
+`RabbitTemplate` and `AmqpAdmin` also instantiate when no broker is reachable, because the connection is lazy. The starter can therefore sit on the classpath with delivery switched off and the binary still starts normally, which is how it ships today.
+
+One thing had to be disabled. The AMQP starter registers a Rabbit health indicator that reports `DOWN` when it cannot reach a broker, and `deploy.sh` gates a release on `"status":"UP"`. Left alone it would have failed every deployment, so `management.health.rabbit.enabled` is `false`.
+
 ### Testing the compiled binary
 
 I didn't want CI to stop at checking whether the native image compiled successfully. The binary also needs to prove that its database and application logic actually work.
@@ -219,6 +225,10 @@ It:
 4. Attempts three seat reservations against an event with a capacity of two.
 5. Checks that the results are `true/true/false`.
 6. Rolls back the entire operation in a transaction.
+
+When `app.amqp.enabled` is set, it then declares a durable queue, publishes a message, reads it back and deletes the queue. That makes a release prove the broker path works in the compiled binary rather than only on the JVM. With the flag off it prints `amqp spike skipped` and continues, which is how CI runs it today.
+
+**RabbitMQ 4 will not accept a transient non-exclusive queue.** The probe queue was originally declared non-durable and auto-deleting, and the broker closed the connection mid-declaration: `transient_nonexcl_queues is deprecated. By default, this feature is not permitted anymore`. It is declared durable instead, which is what reminder delivery would want regardless.
 
 Any failure produces a non-zero exit code.
 
@@ -377,7 +387,7 @@ The application is deployed through GitHub Actions whenever code is pushed to `m
 ```text
 Push to main
    ↓
-Backend tests (51) ─┬─ Frontend build
+Backend tests (65) ─┬─ Frontend build
                     ↓
               Native image build
                     ↓
@@ -513,6 +523,7 @@ There are still a few things I'd like to improve. Some are operational shortcomi
 - **No off-instance database backups.** The deployment script creates a local backup before each release, but losing the VM would also mean losing the database. Litestream with Cloud Storage is the planned solution.
 - **The scheduler jobs do not exist yet.** `ops/create-scheduler-job.sh` creates a job and its invoker service account, and two are needed: one for `/internal/jobs/reminders` to enqueue and one for `/internal/jobs/outbox` to deliver. Neither has been created, so both endpoints only run when called by hand.
 - **No uptime check.** Cloud Monitoring offers one for free, and it would be a better signal than the health poll the deployment script already does.
+- **The message broker is verified but not wired in.** `spring-boot-starter-amqp` is on the classpath and `--spike` proves a full publish-and-receive round trip inside the native binary, but the outbox relay still delivers inline rather than through a queue. `app.amqp.enabled` is `false` everywhere and no broker runs anywhere, so this is a proven option rather than a working path.
 - **No proper JVM-versus-native benchmark.** I compared startup times (2.50 s versus 0.51 s), but the measurements were taken on different hardware. Throughput hasn't been tested under identical conditions.
 - **Reminder emails haven't been tested against the live Resend API.** The HTTP client is tested against a mock server, and the key is now loaded from Secret Manager at startup, but no actual reminder email has been sent. This does not need a verified domain: Resend publishes sink addresses (`delivered@resend.dev`, `bounced@resend.dev`) that accept real sends, and `ops/reminder-smoke-test.sh` seeds an event whose attendees are those addresses plus one on `example.com`, which Resend rejects with a 422 and so exercises the failure path that releases the reminder claim. Sending from a real address would still need a domain, which `duckdns.org` cannot provide because Resend requires DKIM and SPF records on subdomains of the sending host.
 - **The API URL uses `workers.dev`.** A custom domain would make it cleaner, but would introduce an annual cost.

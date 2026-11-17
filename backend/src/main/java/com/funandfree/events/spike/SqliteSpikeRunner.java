@@ -21,13 +21,16 @@ public class SqliteSpikeRunner implements ApplicationRunner {
     private final EventRepository events;
     private final ConfigurableApplicationContext context;
     private final TransactionTemplate transactions;
+    private final AmqpSpike amqp;
 
     SqliteSpikeRunner(JdbcClient db, EventRepository events, ConfigurableApplicationContext context,
-                      PlatformTransactionManager transactionManager) {
+                      PlatformTransactionManager transactionManager,
+                      AmqpSpike amqp) {
         this.db = db;
         this.events = events;
         this.context = context;
         this.transactions = new TransactionTemplate(transactionManager);
+        this.amqp = amqp;
     }
 
     @Override
@@ -44,7 +47,7 @@ public class SqliteSpikeRunner implements ApplicationRunner {
             verify();
             return 0;
         } catch (RuntimeException e) {
-            System.out.println("--- sqlite spike FAILED: " + e + " ---");
+            System.out.println("--- spike FAILED: " + e + " ---");
             return 1;
         }
     }
@@ -76,6 +79,7 @@ public class SqliteSpikeRunner implements ApplicationRunner {
             throw new IllegalStateException("spike writes were not rolled back");
         }
         System.out.println("--- sqlite spike ok ---");
+        amqp.verify();
     }
 
     private void verifyWrites() {

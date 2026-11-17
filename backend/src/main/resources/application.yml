@@ -4,6 +4,15 @@ spring:
   threads:
     virtual:
       enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    ssl:
+      enabled: ${RABBITMQ_SSL:false}
+    connection-timeout: 10s
   datasource:
     url: jdbc:sqlite:${APP_DB_PATH:./data/events.db}?journal_mode=WAL&busy_timeout=5000&foreign_keys=on&transaction_mode=IMMEDIATE
     driver-class-name: org.sqlite.JDBC
@@ -36,6 +45,9 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    rabbit:
+      enabled: false
 
 app:
   cors:
@@ -46,6 +58,9 @@ app:
       issuer: ${APP_OIDC_ISSUER:https://accounts.google.com}
       jwk-set-uri: ${APP_OIDC_JWK_SET_URI:https://www.googleapis.com/oauth2/v3/certs}
       audience: ${APP_OIDC_AUDIENCE:}
+  amqp:
+    enabled: ${APP_AMQP_ENABLED:false}
+    queue: ${APP_AMQP_QUEUE:reminder.email}
   outbox:
     max-attempts: ${APP_OUTBOX_MAX_ATTEMPTS:5}
     batch-size: ${APP_OUTBOX_BATCH_SIZE:50}
